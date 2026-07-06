@@ -1,28 +1,16 @@
 import { Router } from 'express';
 import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import {
   uploadDocument,
   getDocuments,
   deleteDocument,
   toggleShare,
   signDocument,
+  downloadDocument
 } from '../controllers/documentController.js';
 import { protect } from '../middleware/auth.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, path.join(__dirname, '../../uploads'));
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${uniqueSuffix}-${file.originalname}`);
-  },
-});
+const storage = multer.memoryStorage();
 
 const fileFilter = (_req, file, cb) => {
   const allowed = [
@@ -42,9 +30,13 @@ const fileFilter = (_req, file, cb) => {
   }
 };
 
-const upload = multer({ storage, fileFilter, limits: { fileSize: 20 * 1024 * 1024 } }); // 20MB
+const upload = multer({ storage, fileFilter, limits: { fileSize: 15 * 1024 * 1024 } }); // 15MB
 
 const router = Router();
+
+// Unprotected for easy browser viewing without passing auth headers manually
+router.get('/:id/download', downloadDocument);
+
 router.use(protect);
 
 router.post('/upload', upload.single('document'), uploadDocument);

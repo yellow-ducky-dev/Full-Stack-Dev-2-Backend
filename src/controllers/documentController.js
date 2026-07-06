@@ -1,28 +1,28 @@
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
 import Document from '../models/Document.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // @route  POST /api/documents/upload  (multipart/form-data)
 export const uploadDocument = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded.' });
 
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-
     const doc = await Document.create({
       originalName: req.file.originalname,
-      filename: req.file.filename,
+      filename: `${Date.now()}-${req.file.originalname}`,
       mimeType: req.file.mimetype,
       size: req.file.size,
-      url: fileUrl,
+      fileBuffer: req.file.buffer, // Save buffer to Mongo!
+      url: '', 
       uploadedBy: req.user._id,
       description: req.body.description || '',
       tags: req.body.tags ? req.body.tags.split(',').map((t) => t.trim()) : [],
     });
+
+    // Make the URL a direct API path to a download endpoint
+    doc.url = `${req.protocol}://${req.get('host')}/api/documents/${doc._id}/download`;
+    await doc.save();
+
+    // Prevent crashing frontend response by obscuring the heavy raw bitmask
+    doc.fileBuffer = undefined;
 
     await doc.populate('uploadedBy', 'name email avatarUrl');
     res.status(201).json(doc);
@@ -55,10 +55,6 @@ export const deleteDocument = async (req, res) => {
     if (doc.uploadedBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to delete this document.' });
     }
-
-    // Delete physical file
-    const filePath = path.join(__dirname, '../../uploads', doc.filename);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
     await doc.deleteOne();
     res.json({ message: 'Document deleted.' });
@@ -107,5 +103,19 @@ export const signDocument = async (req, res) => {
     res.json(doc);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+// @route  GET /api/documents/:id/download
+export const downloadDocument = async (req, res) => {
+  try {
+    const doc = await Document.findById(req.params.id);
+    if (!doc || !doc.fileBuffer) return res.status(404).send('Not found');
+
+    res.set('Content-Type', doc.mimeType);
+    res.set('Content-Disposition', `inline; filename="${doc.originalName}"`);
+    res.send(doc.fileBuffer);
+  } catch (err) {
+    res.status(500).send(err.message);
   }
 };

@@ -6,6 +6,7 @@ const documentSchema = new mongoose.Schema(
     filename: { type: String, required: true }, // stored filename
     mimeType: { type: String, required: true },
     size: { type: Number, required: true }, // in bytes
+    fileBuffer: { type: Buffer }, // MongoDB storage for serverless environments
     url: { type: String, required: true }, // accessible path
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
