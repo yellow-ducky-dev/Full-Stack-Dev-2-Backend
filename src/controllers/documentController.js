@@ -5,27 +5,31 @@ export const uploadDocument = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded.' });
 
+    const filename = `${Date.now()}-${req.file.originalname}`;
+    const tempId = new (await import('mongoose')).default.Types.ObjectId();
+    const fileUrl = `${req.protocol}://${req.get('host')}/api/documents/${tempId}/download`;
+
     const doc = await Document.create({
+      _id: tempId,
       originalName: req.file.originalname,
-      filename: `${Date.now()}-${req.file.originalname}`,
+      filename,
       mimeType: req.file.mimetype,
       size: req.file.size,
-      fileBuffer: req.file.buffer, // Save buffer to Mongo!
-      url: '', 
+      fileBuffer: req.file.buffer,
+      url: fileUrl,
       uploadedBy: req.user._id,
       description: req.body.description || '',
       tags: req.body.tags ? req.body.tags.split(',').map((t) => t.trim()) : [],
     });
 
-    // Make the URL a direct API path to a download endpoint
-    doc.url = `${req.protocol}://${req.get('host')}/api/documents/${doc._id}/download`;
-    await doc.save();
-
-    // Prevent crashing frontend response by obscuring the heavy raw bitmask
-    doc.fileBuffer = undefined;
-
+    // Strip the buffer from the response to keep JSON lean
+    const docObj = doc.toObject();
+    delete docObj.fileBuffer;
     await doc.populate('uploadedBy', 'name email avatarUrl');
-    res.status(201).json(doc);
+
+    const response = doc.toObject();
+    delete response.fileBuffer;
+    res.status(201).json(response);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
