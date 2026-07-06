@@ -45,11 +45,10 @@ const meetingSchema = new mongoose.Schema(
 );
 
 // Auto-compute endsAt before saving
-meetingSchema.pre('save', function (next) {
+meetingSchema.pre('save', function () {
   if (this.scheduledAt && this.duration) {
     this.endsAt = new Date(this.scheduledAt.getTime() + this.duration * 60000);
   }
-  next();
 });
 
 const Meeting = mongoose.model('Meeting', meetingSchema);
